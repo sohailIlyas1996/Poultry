@@ -1,5 +1,5 @@
 const express = require('express');
-
+const path = require('path');
 const passport = require('passport');
 const expressSession=require('express-session')
 const localStrategy=require('passport-local');
@@ -11,8 +11,6 @@ const multer = require('multer');
 const productModel = require('./prod'); 
 const orderModel = require('./order');
 const { log } = require('console');
-const fs = require('fs');
-const path = require('path');
 require('dotenv').config()
 
 var admin = require("firebase-admin");
@@ -235,12 +233,7 @@ const upload = multer({ storage: storage });
 
 
 
-
-// Define the route handling the POST request for adding a new product with image upload
-app.post('/addProduct', isAuthenticated, upload.single('image'), handleAddProduct);
-
-// Function to handle adding a new product
-async function handleAddProduct(req, res) {
+module.exports = async (req, res) => {
   const { name, description, price, category, quantity } = req.body;
 
   try {
@@ -288,9 +281,7 @@ async function handleAddProduct(req, res) {
     console.error('Error adding product:', error);
     res.status(500).json({ error: 'Error adding product' });
   }
-}
-
-
+};
 app.post('/updateProduct/:id', async (req, res) => {
   const productId = req.params.id; // Extract the product ID from the request parameters
 
