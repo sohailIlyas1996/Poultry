@@ -1,5 +1,5 @@
 const express = require('express');
-const path = require('path');
+
 const passport = require('passport');
 const expressSession=require('express-session')
 const localStrategy=require('passport-local');
@@ -11,6 +11,8 @@ const multer = require('multer');
 const productModel = require('./prod'); 
 const orderModel = require('./order');
 const { log } = require('console');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config()
 
 var admin = require("firebase-admin");
@@ -233,52 +235,60 @@ const upload = multer({ storage: storage });
 
 
 
-// Handle POST request for adding a new product with image upload
-app.post('/addProduct', isAuthenticated, upload.single('image'), async (req, res) => {
+
+// Define the route handling the POST request for adding a new product with image upload
+app.post('/addProduct', isAuthenticated, upload.single('image'), handleAddProduct);
+
+// Function to handle adding a new product
+async function handleAddProduct(req, res) {
   const { name, description, price, category, quantity } = req.body;
 
   try {
-    // Upload the image to Firebase Storage
-    const file = bucket.file(req.file.filename);
-    const stream = file.createWriteStream({
+    // Generate a unique filename for the temporary file
+    const filename = `tempfile_${Date.now()}.jpg`;
+
+    // Create a path to the temporary file in the /tmp directory
+    const tempFilePath = path.join('/tmp', filename);
+
+    // Write the image buffer received in the request to the temporary file
+    fs.writeFileSync(tempFilePath, req.file.buffer);
+
+    // Upload the temporary file to Firebase Storage
+    const firebaseFile = bucket.file(filename);
+    await bucket.upload(tempFilePath, {
+      destination: firebaseFile,
       metadata: {
         contentType: req.file.mimetype,
       },
     });
 
-    stream.on('error', (error) => {
-      console.error('Error uploading image to Firebase Storage:', error);
-      res.status(500).json({ error: 'Error uploading image to Firebase Storage' });
+    // Create a new product instance based on the Product model
+    const newProduct = new productModel({
+      name,
+      description,
+      price,
+      category,
+      quantity,
+      image: {
+        path: filename,
+        extension: req.file.originalname.split('.').pop(),
+        // Generate the URL for the uploaded image in Firebase Storage
+        url: `https://storage.googleapis.com/${bucket.name}/${filename}`,
+      },
     });
 
-    stream.on('finish', async () => {
-      // Create a new product instance based on the Product model
-      const newProduct = new productModel({
-        name,
-        description,
-        price,
-        category,
-        quantity,
-        image: {
-          path: req.file.filename,
-          extension: req.file.originalname.split('.').pop(),
-          // Generate the URL for the uploaded image in Firebase Storage
-          url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
-        },
-      });
+    // Save the new product to the database
+    await newProduct.save();
 
-      // Save the new product to the database
-      await newProduct.save();
+    // Clean up the temporary file
+    fs.unlinkSync(tempFilePath);
 
-      res.redirect('./showallproducts');
-    });
-
-    stream.end(req.file.buffer);
+    res.redirect('./showallproducts');
   } catch (error) {
     console.error('Error adding product:', error);
     res.status(500).json({ error: 'Error adding product' });
   }
-});
+}
 
 
 app.post('/updateProduct/:id', async (req, res) => {
