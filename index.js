@@ -11,7 +11,22 @@ const multer = require('multer');
 const productModel = require('./prod'); 
 const orderModel = require('./order');
 const { log } = require('console');
+require('dotenv').config()
 
+var admin = require("firebase-admin");
+
+var serviceAccount = require("./serviceKey.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: process.env.Bucket_Url
+});
+
+const bucket = admin.storage().bucket(); // Move bucket initialization to global scope
+
+
+let db=admin.firestore();
+let a=db.collection('users')
 passport.use('student-local', new localStrategy(studentModel.authenticate()));
 
 
@@ -39,6 +54,26 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 
+app.post('/data', async (req, res) => {
+  try {
+    // Check if req.body.user exists and has a name property
+    if (req.body && req.body.user && req.body.user.name) {
+      let docRef = a.doc(req.body.user.name);
+      await docRef.set({
+        hobby: req.body.user.hobby,
+        age: req.body.user.age,
+      });
+      res.send('done');
+    } else {
+      // Handle the case when req.body.user or req.body.user.name is not present
+      console.error("Invalid request body structure. 'user' or 'name' property is missing.");
+      res.status(400).send("Invalid request body structure");
+    }
+  } catch (error) {
+    console.error("Error processing the request:", error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 
 // Handling the root route ('/')
@@ -196,33 +231,56 @@ const storage = multer.diskStorage({
 // Create multer instance with defined storage
 const upload = multer({ storage: storage });
 
+
+
 // Handle POST request for adding a new product with image upload
 app.post('/addProduct', isAuthenticated, upload.single('image'), async (req, res) => {
   const { name, description, price, category, quantity } = req.body;
 
   try {
-    // Create a new product instance based on the Product model
-    const newProduct = new productModel({
-      name,
-      description,
-      price,
-      category,
-      quantity,
-      image: {
-        path: req.file.filename, // Save the filename of the uploaded image
-        extension: req.file.originalname.split('.').pop() // Extract and save the file extension
-      }
+    // Upload the image to Firebase Storage
+    const file = bucket.file(req.file.filename);
+    const stream = file.createWriteStream({
+      metadata: {
+        contentType: req.file.mimetype,
+      },
     });
 
-    // Save the new product to the database
-    await newProduct.save();
+    stream.on('error', (error) => {
+      console.error('Error uploading image to Firebase Storage:', error);
+      res.status(500).json({ error: 'Error uploading image to Firebase Storage' });
+    });
 
-    res.redirect('./showallproducts');
+    stream.on('finish', async () => {
+      // Create a new product instance based on the Product model
+      const newProduct = new productModel({
+        name,
+        description,
+        price,
+        category,
+        quantity,
+        image: {
+          path: req.file.filename,
+          extension: req.file.originalname.split('.').pop(),
+          // Generate the URL for the uploaded image in Firebase Storage
+          url: `https://storage.googleapis.com/${bucket.name}/${file.name}`,
+        },
+      });
+
+      // Save the new product to the database
+      await newProduct.save();
+
+      res.redirect('./showallproducts');
+    });
+
+    stream.end(req.file.buffer);
   } catch (error) {
     console.error('Error adding product:', error);
     res.status(500).json({ error: 'Error adding product' });
   }
 });
+
+
 app.post('/updateProduct/:id', async (req, res) => {
   const productId = req.params.id; // Extract the product ID from the request parameters
 
@@ -265,6 +323,7 @@ console.log(productId);
     res.status(500).send('Error deleting product');
   }
 });
+
 app.post('/createOrder',isAuthenticated, async (req, res) => {
   const { products } = req.body;
 
