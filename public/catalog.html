@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>All Products Catalog</title>
+  <style>
+    /* Styles for the product list */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f4f4f4;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 20px auto;
+      background-color: #fff;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .container > h1 {
+      text-align: center;
+    }
+
+    .product-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .product {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #fff;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .product img {
+      max-width: 100%;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .product p {
+      margin-bottom: 4px;
+    }
+
+    /* Other styles for buttons and form */
+    /* ... (Styles for edit, delete buttons, and form) ... */
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>All Products Catalog</h1>
+    <div id="productList" class="product-grid"></div>
+  </div>
+
+  <script>
+    // Function to toggle between showing/hiding edit form
+    const toggleEditForm = (productId) => {
+      const editForm = document.getElementById(`editForm-${productId}`);
+      const currentDisplayStyle = editForm.style.display;
+
+      editForm.style.display = currentDisplayStyle === 'none' || currentDisplayStyle === '' ? 'block' : 'none';
+    };
+
+    // Function to handle product deletion
+    const deleteProduct = (productId) => {
+      // Send an HTTP request to delete the product by ID
+      fetch(`/deleteProduct/${productId}`, {
+        method: 'DELETE'
+      })
+      .then(response => {
+        if (response.ok) {
+          // Refresh the page after successful deletion
+          window.location.reload();
+        } else {
+          console.error('Error deleting product');
+        }
+      })
+      .catch(error => console.error('Error deleting product:', error));
+    };
+
+    // Fetch and display products from the backend API
+    window.onload = () => {
+      fetch('/allproducts') // Replace '/allproducts' with your actual endpoint
+        .then(response => response.json())
+        .then(data => {
+          const productListDiv = document.getElementById('productList');
+          data.forEach(product => {
+            const productDiv = document.createElement('div');
+            productDiv.className = 'product';
+
+            const imageElement = document.createElement('img');
+            imageElement.src = `../uploads/${product.image.path}`;
+            imageElement.alt = product.name;
+
+            const nameElement = document.createElement('p');
+            nameElement.textContent = product.name;
+
+            const priceElement = document.createElement('p');
+            priceElement.textContent = `Rs ${product.price.toFixed(2)}`; // Displaying price with two decimal places
+
+            productDiv.appendChild(imageElement);
+            productDiv.appendChild(nameElement);
+            productDiv.appendChild(priceElement);
+
+            productListDiv.appendChild(productDiv);
+          });
+        })
+        .catch(error => console.error('Error fetching products:', error));
+    };
+  </script>
+</body>
+</html>

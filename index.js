@@ -88,6 +88,10 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'placeorder.html'));
   });
 
+  app.get('/catalog', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'catalog.html'));
+  });
+
 app.get('/admin',isAuthenticated, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
